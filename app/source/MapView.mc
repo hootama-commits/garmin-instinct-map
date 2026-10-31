@@ -159,6 +159,8 @@ class MapView extends WatchUi.View {
     }
 
     function drawStatus(dc, w, h, z) {
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(SUB_CX, SUB_CY, 31);
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(SUB_CX, SUB_CY, Graphics.FONT_TINY, "z" + z, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         var msg = null;
