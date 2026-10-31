@@ -1,0 +1,6 @@
+vendor/
+keys/
+tiles/data/
+app/bin/
+__pycache__/
+*.pyc
