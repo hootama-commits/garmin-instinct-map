@@ -4,13 +4,13 @@ import Toybox.ActivityRecording;
 import Toybox.Lang;
 
 class Recorder {
-    const SPORTS = [Activity.SPORT_RUNNING, Activity.SPORT_CYCLING];
-    const NAMES = ["Run", "Bike"];
+    const SPORTS = [Activity.SPORT_CYCLING, Activity.SPORT_RUNNING];
+    const NAMES = ["Bike", "Run"];
     var si = 0;
     var session = null;
 
     function isBike() {
-        return si == 1;
+        return si == 0;
     }
 
     function sportName() {
