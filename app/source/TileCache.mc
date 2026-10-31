@@ -19,7 +19,7 @@ class TileCache {
     var lastCode = 0;
     var fetched = 0;
     var tries = 0;
-    var codes = [0, 0];      // 옵션 A(팔레트·디더링 지정)·B(크기만 지정)별 마지막 응답 코드
+    var codes = [0, 0, 0];      // 옵션 A(팔레트·디더링 지정)·B(크기만 지정)별 마지막 응답 코드
     var variant = 0;
 
     function beginFrame() {
@@ -60,12 +60,15 @@ class TileCache {
         wanted = [];
         pending = w[3];
         tries++;
-        variant = tries % 2;
-        var url = BASE + w[0] + "/" + w[1] + "/" + w[2] + ".png";
-        var opts = (variant == 1)
-            ? {:dithering => Communications.IMAGE_DITHERING_NONE,
-               :palette => [Graphics.COLOR_BLACK, Graphics.COLOR_WHITE]}
-            : {:maxWidth => 128, :maxHeight => 128};
+        variant = tries % 3;
+        var tail = w[0] + "/" + w[1] + "/" + w[2] + ".png";
+        var url = BASE + tail;
+        if (variant == 1) {
+            url = "https://raw.githubusercontent.com/hootama-commits/garmin-instinct-map/main/docs/t/" + tail;
+        } else if (variant == 2) {
+            url = "https://www.w3.org/Icons/w3c_home.png";
+        }
+        var opts = {:maxWidth => 128, :maxHeight => 128};
         Communications.makeImageRequest(url, null, opts, method(:onImage));
     }
 
@@ -77,7 +80,7 @@ class TileCache {
         System.println("tile " + key + " code " + code + " mem " + System.getSystemStats().usedMemory);
         if (key == null) { return; }
         if (code == 200 && data != null) {
-            put(key, data);
+            if (variant != 2) { put(key, data); }
             fetched++;
         } else {
             missing.put(key, Time.now().value());
