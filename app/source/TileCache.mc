@@ -9,7 +9,7 @@ import Toybox.WatchUi;
 
 class TileCache {
     const BASE = "https://hootama-commits.github.io/garmin-instinct-map/v/";
-    const CAP = 12;
+    const CAP = 10;
     var tiles = {};          // key -> 그리기 목록 [[코드, 점, 점...], ...]
     var order = [];          // LRU, 오래된 것이 앞
     var missing = {};        // key -> 실패 시각(초)
