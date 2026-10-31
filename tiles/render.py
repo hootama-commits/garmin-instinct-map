@@ -80,6 +80,8 @@ def world_px(lon, lat, z):
 def allowed_tiles(z):
     out = set()
     for a in AREAS:
+        if z > a.get("maxz", 16):
+            continue
         x0, y0 = world_px(a["west"], a["north"], z)
         x1, y1 = world_px(a["east"], a["south"], z)
         for tx in range(int(x0 // TILE), int(x1 // TILE) + 1):
