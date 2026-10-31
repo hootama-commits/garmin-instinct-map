@@ -1,16 +1,16 @@
-// 타일 캐시: 폰(Garmin Connect) 경유로 1비트 PNG 타일을 받아 LRU로 보관
+// 타일 캐시: 폰(Garmin Connect) 경유 일반 웹 요청(JSON)으로 선 좌표 타일을 받아 LRU로 보관
+// 이 폰·시계 조합은 이미지 요청이 -300으로 막혀 있어 JSON 방식을 쓴다.
 // 동시 요청 1건 · 화면 중심에서 가까운 타일 먼저 · 404(빈 땅)는 15분간 재요청 안 함
 import Toybox.Communications;
-import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.System;
 import Toybox.Time;
 import Toybox.WatchUi;
 
 class TileCache {
-    const BASE = "https://hootama-commits.github.io/garmin-instinct-map/t/";
+    const BASE = "https://hootama-commits.github.io/garmin-instinct-map/v/";
     const CAP = 12;
-    var bitmaps = {};        // key -> BitmapResource
+    var tiles = {};          // key -> 그리기 목록 [[코드, 점, 점...], ...]
     var order = [];          // LRU, 오래된 것이 앞
     var missing = {};        // key -> 실패 시각(초)
     var pending = null;      // 요청 중인 key
@@ -19,8 +19,6 @@ class TileCache {
     var lastCode = 0;
     var fetched = 0;
     var tries = 0;
-    var codes = [0, 0, 0, 0];      // 옵션 A(팔레트·디더링 지정)·B(크기만 지정)별 마지막 응답 코드
-    var variant = 0;
 
     function beginFrame() {
         wanted = [];
@@ -28,10 +26,10 @@ class TileCache {
 
     function get(z, x, y, dist) {
         var key = "" + z + "/" + x + "/" + y;
-        var bmp = bitmaps.get(key);
-        if (bmp != null) {
+        var ops = tiles.get(key);
+        if (ops != null) {
             touch(key);
-            return bmp;
+            return ops;
         }
         var m = missing.get(key);
         if (m != null) {
@@ -60,34 +58,20 @@ class TileCache {
         wanted = [];
         pending = w[3];
         tries++;
-        variant = tries % 4;
-        var tail = w[0] + "/" + w[1] + "/" + w[2] + ".png";
-        var url = BASE + tail;
-        if (variant == 1) {
-            url = "https://raw.githubusercontent.com/hootama-commits/garmin-instinct-map/main/docs/t/" + tail;
-        } else if (variant == 2) {
-            url = "https://www.w3.org/Icons/w3c_home.png";
-        }
-        var opts = {:maxWidth => 128, :maxHeight => 128};
-        if (variant == 3) {
-            Communications.makeWebRequest("https://hootama-commits.github.io/garmin-instinct-map/ping.json", null,
-                {:method => Communications.HTTP_REQUEST_METHOD_GET,
-                 :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON},
-                method(:onImage));
-        } else {
-            Communications.makeImageRequest(url, null, opts, method(:onImage));
-        }
+        var url = BASE + w[0] + "/" + w[1] + "/" + w[2] + ".json";
+        Communications.makeWebRequest(url, null,
+            {:method => Communications.HTTP_REQUEST_METHOD_GET,
+             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON},
+            method(:onTile));
     }
 
-    function onImage(code as Number, data) as Void {
+    function onTile(code as Number, data) as Void {
         var key = pending;
         pending = null;
         lastCode = code;
-        codes[variant] = code;
-        System.println("tile " + key + " code " + code + " mem " + System.getSystemStats().usedMemory);
         if (key == null) { return; }
-        if (code == 200 && data != null) {
-            if (variant < 2) { put(key, data); }
+        if (code == 200 && data instanceof Dictionary && data.get("a") != null) {
+            put(key, data.get("a"));
             fetched++;
         } else {
             missing.put(key, Time.now().value());
@@ -97,13 +81,13 @@ class TileCache {
         WatchUi.requestUpdate();
     }
 
-    function put(key, bmp) {
+    function put(key, ops) {
         while (order.size() >= CAP) {
             var old = order[0];
             removeKey(old);
-            bitmaps.remove(old);
+            tiles.remove(old);
         }
-        bitmaps.put(key, bmp);
+        tiles.put(key, ops);
         order.add(key);
     }
 

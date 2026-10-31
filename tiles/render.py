@@ -220,8 +220,9 @@ def draw_line(d, xy, width, pattern):
         d.point([tuple(p) for p in rp], fill=255)
 
 
-def render_tile(items, z, tx, ty):
-    """한 타일을 그린다. 잉크 불리언 배열(TILE×TILE) 또는 비어 있으면 None."""
+def render_tile(items, z, tx, ty, kept=None):
+    """한 타일을 그린다. 잉크 불리언 배열(TILE×TILE) 또는 비어 있으면 None.
+    kept(set)를 주면 밀도 가드를 통과해 실제 그려진 등급 이름을 담아 준다."""
     size = TILE + 2 * MARGIN
     ox, oy = tx * TILE - MARGIN, ty * TILE - MARGIN
     ink = np.zeros((size, size), dtype=bool)
@@ -277,6 +278,8 @@ def render_tile(items, z, tx, ty):
         if pri >= DROPPABLE_FROM and candidate[core].sum() / core_area > INK_MAX:
             continue  # 밀도 가드: 이 등급은 이 타일에서 생략
         ink = candidate
+        if kept is not None:
+            kept.add(cls)
 
     core_ink = ink[core]
     return core_ink if core_ink.any() else None
@@ -289,7 +292,7 @@ def save_tile(core_ink, out_dir, z, tx, ty):
     img.save(os.path.join(d, f"{ty}.png"), optimize=True)
 
 
-def render_all(feats, out_dir, zooms):
+def render_all(feats, out_dir, zooms, emit=None, write_png=True):
     stats = {}
     for z in zooms:
         t0 = time.time()
@@ -297,9 +300,13 @@ def render_all(feats, out_dir, zooms):
         buckets = bucket_features(feats, z, allowed)
         written = 0
         for (tx, ty), items in buckets.items():
-            core = render_tile(items, z, tx, ty)
+            kept = set()
+            core = render_tile(items, z, tx, ty, kept)
             if core is not None:
-                save_tile(core, out_dir, z, tx, ty)
+                if write_png:
+                    save_tile(core, out_dir, z, tx, ty)
+                if emit is not None:
+                    emit(items, z, tx, ty, kept)
                 written += 1
         stats[z] = (len(allowed), written, time.time() - t0)
         print(
@@ -339,12 +346,23 @@ def main():
     ap.add_argument("--zooms", default=",".join(map(str, ZOOMS)))
     ap.add_argument("--preview", default=None, help="lat,lon")
     ap.add_argument("--preview-only", action="store_true")
+    ap.add_argument("--vec-dir", default=None, help="벡터 JSON 출력 폴더(docs/v)")
+    ap.add_argument("--no-png", action="store_true")
+    ap.add_argument("--only", default=None, help="이 이름의 영역만 렌더(쉼표 구분)")
     a = ap.parse_args()
     zooms = [int(s) for s in a.zooms.split(",")]
+    if a.only:
+        names = a.only.split(",")
+        AREAS[:] = [x for x in AREAS if x["name"] in names]
     if not a.preview_only:
         with open(a.features, "rb") as f:
             feats = pickle.load(f)
-        render_all(feats, a.out_dir, zooms)
+        emit = None
+        if a.vec_dir:
+            from vector import make_emitter
+
+            emit = make_emitter(a.vec_dir)
+        render_all(feats, a.out_dir, zooms, emit, write_png=not a.no_png)
     if a.preview:
         lat, lon = (float(s) for s in a.preview.split(","))
         preview(

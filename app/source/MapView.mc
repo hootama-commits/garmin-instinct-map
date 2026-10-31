@@ -44,8 +44,8 @@ class MapView extends WatchUi.View {
                 var sy = ty * TILE - oy;
                 var dx = sx + TILE / 2 - w / 2;
                 var dy = sy + TILE / 2 - h / 2;
-                var bmp = model.tiles.get(z, tx, ty, dx * dx + dy * dy);
-                if (bmp != null) { dc.drawBitmap(sx, sy, bmp); }
+                var ops = model.tiles.get(z, tx, ty, dx * dx + dy * dy);
+                if (ops != null) { drawOps(dc, ops, sx, sy); }
             }
         }
         model.tiles.pump();
@@ -56,6 +56,49 @@ class MapView extends WatchUi.View {
         drawMarker(dc, w / 2, h / 2);
         drawScale(dc, h, z);
         drawStatus(dc, w, h, z);
+    }
+
+    // 타일 그리기: 코드 1~3 실선(펜 굵기) · 4 점선 · 10+r 고리 · 20+r 원판. 점 = (x+8)*256 + (y+8)
+    function drawOps(dc, ops, sx, sy) {
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        for (var i = 0; i < ops.size(); i++) {
+            var op = ops[i];
+            var c = op[0];
+            var n = op.size();
+            if (c <= 3) {
+                dc.setPenWidth(c);
+                var p = op[1];
+                var px = (p >> 8) - 8 + sx;
+                var py = (p & 255) - 8 + sy;
+                for (var j = 2; j < n; j++) {
+                    var q = op[j];
+                    var qx = (q >> 8) - 8 + sx;
+                    var qy = (q & 255) - 8 + sy;
+                    dc.drawLine(px, py, qx, qy);
+                    px = qx;
+                    py = qy;
+                }
+            } else if (c == 4) {
+                dc.setPenWidth(1);
+                for (var j = 1; j < n; j++) {
+                    dc.drawPoint((op[j] >> 8) - 8 + sx, (op[j] & 255) - 8 + sy);
+                }
+            } else {
+                var r = c % 10;
+                var x = (op[1] >> 8) - 8 + sx;
+                var y = (op[1] & 255) - 8 + sy;
+                if (c >= 20) {
+                    dc.fillCircle(x, y, r);
+                } else {
+                    dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+                    dc.fillCircle(x, y, r);
+                    dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+                    dc.setPenWidth(1);
+                    dc.drawCircle(x, y, r);
+                }
+            }
+        }
+        dc.setPenWidth(1);
     }
 
     // 현재 위치: 진행 방향 삼각형(흰 테두리) · 방향 없으면 원
@@ -132,10 +175,6 @@ class MapView extends WatchUi.View {
             dc.drawText(w / 2, 10, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        var cs = model.tiles.codes;
-        dc.drawText(30, h - 70, Graphics.FONT_XTINY, "t" + model.tiles.fetched + " n" + model.tiles.tries, Graphics.TEXT_JUSTIFY_LEFT);
-        dc.drawText(30, h - 58, Graphics.FONT_XTINY, "P" + cs[0] + " R" + cs[1], Graphics.TEXT_JUSTIFY_LEFT);
-        dc.drawText(30, h - 46, Graphics.FONT_XTINY, "W" + cs[2] + " J" + cs[3], Graphics.TEXT_JUSTIFY_LEFT);
         if (model.recorder.session != null) {
             var mark = model.recorder.isRecording() ? "REC" : "PAUSE";
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
