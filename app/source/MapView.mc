@@ -132,7 +132,7 @@ class MapView extends WatchUi.View {
             dc.drawText(w / 2, 10, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(30, h - 42, Graphics.FONT_XTINY, "t" + model.tiles.fetched + " c" + model.tiles.lastCode + " n" + model.tiles.tries, Graphics.TEXT_JUSTIFY_LEFT);
+        dc.drawText(30, h - 42, Graphics.FONT_XTINY, "t" + model.tiles.fetched + " n" + model.tiles.tries + " A" + model.tiles.codes[1] + " B" + model.tiles.codes[0], Graphics.TEXT_JUSTIFY_LEFT);
         if (model.recorder.session != null) {
             var mark = model.recorder.isRecording() ? "REC" : "PAUSE";
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);

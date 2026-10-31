@@ -19,6 +19,8 @@ class TileCache {
     var lastCode = 0;
     var fetched = 0;
     var tries = 0;
+    var codes = [0, 0];      // 옵션 A(팔레트·디더링 지정)·B(크기만 지정)별 마지막 응답 코드
+    var variant = 0;
 
     function beginFrame() {
         wanted = [];
@@ -58,17 +60,20 @@ class TileCache {
         wanted = [];
         pending = w[3];
         tries++;
+        variant = tries % 2;
         var url = BASE + w[0] + "/" + w[1] + "/" + w[2] + ".png";
-        Communications.makeImageRequest(url, null,
-            {:dithering => Communications.IMAGE_DITHERING_NONE,
-             :palette => [Graphics.COLOR_BLACK, Graphics.COLOR_WHITE]},
-            method(:onImage));
+        var opts = (variant == 1)
+            ? {:dithering => Communications.IMAGE_DITHERING_NONE,
+               :palette => [Graphics.COLOR_BLACK, Graphics.COLOR_WHITE]}
+            : {:maxWidth => 128, :maxHeight => 128};
+        Communications.makeImageRequest(url, null, opts, method(:onImage));
     }
 
     function onImage(code as Number, data) as Void {
         var key = pending;
         pending = null;
         lastCode = code;
+        codes[variant] = code;
         System.println("tile " + key + " code " + code + " mem " + System.getSystemStats().usedMemory);
         if (key == null) { return; }
         if (code == 200 && data != null) {
