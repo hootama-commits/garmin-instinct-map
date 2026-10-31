@@ -102,8 +102,8 @@ class MapView extends WatchUi.View {
                 px = p.toNumber();
             }
         }
-        var x = 8;
-        var y = h - 12;
+        var x = 30;
+        var y = h - 16;
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x - 3, y - 15, px + 6, 20);
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
@@ -119,10 +119,11 @@ class MapView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(SUB_CX, SUB_CY, Graphics.FONT_TINY, "z" + z, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         var msg = null;
-        if (!model.hasFix) {
-            msg = "GPS...";
-        } else if (!System.getDeviceSettings().phoneConnected) {
+        var phone = System.getDeviceSettings().phoneConnected;
+        if (!phone) {
             msg = "NO PHONE";
+        } else if (!model.hasFix) {
+            msg = "GPS...";
         }
         if (msg != null) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
@@ -130,12 +131,14 @@ class MapView extends WatchUi.View {
             dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
             dc.drawText(w / 2, 10, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(w / 2, 24, Graphics.FONT_XTINY, "t" + model.tiles.fetched + " c" + model.tiles.lastCode, Graphics.TEXT_JUSTIFY_CENTER);
         if (model.recorder.session != null) {
             var mark = model.recorder.isRecording() ? "REC" : "PAUSE";
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.fillRectangle(w - 44, h - 18, 42, 16);
+            dc.fillRectangle(w - 76, h - 22, 46, 16);
             dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(w - 23, h - 10, Graphics.FONT_XTINY, mark, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(w - 53, h - 14, Graphics.FONT_XTINY, mark, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 
