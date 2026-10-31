@@ -19,7 +19,7 @@ class TileCache {
     var lastCode = 0;
     var fetched = 0;
     var tries = 0;
-    var codes = [0, 0, 0];      // 옵션 A(팔레트·디더링 지정)·B(크기만 지정)별 마지막 응답 코드
+    var codes = [0, 0, 0, 0];      // 옵션 A(팔레트·디더링 지정)·B(크기만 지정)별 마지막 응답 코드
     var variant = 0;
 
     function beginFrame() {
@@ -60,7 +60,7 @@ class TileCache {
         wanted = [];
         pending = w[3];
         tries++;
-        variant = tries % 3;
+        variant = tries % 4;
         var tail = w[0] + "/" + w[1] + "/" + w[2] + ".png";
         var url = BASE + tail;
         if (variant == 1) {
@@ -69,7 +69,14 @@ class TileCache {
             url = "https://www.w3.org/Icons/w3c_home.png";
         }
         var opts = {:maxWidth => 128, :maxHeight => 128};
-        Communications.makeImageRequest(url, null, opts, method(:onImage));
+        if (variant == 3) {
+            Communications.makeWebRequest("https://hootama-commits.github.io/garmin-instinct-map/ping.json", null,
+                {:method => Communications.HTTP_REQUEST_METHOD_GET,
+                 :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON},
+                method(:onImage));
+        } else {
+            Communications.makeImageRequest(url, null, opts, method(:onImage));
+        }
     }
 
     function onImage(code as Number, data) as Void {
@@ -80,7 +87,7 @@ class TileCache {
         System.println("tile " + key + " code " + code + " mem " + System.getSystemStats().usedMemory);
         if (key == null) { return; }
         if (code == 200 && data != null) {
-            if (variant != 2) { put(key, data); }
+            if (variant < 2) { put(key, data); }
             fetched++;
         } else {
             missing.put(key, Time.now().value());
