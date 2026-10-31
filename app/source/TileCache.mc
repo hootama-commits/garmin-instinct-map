@@ -18,6 +18,7 @@ class TileCache {
     var backoffUntil = 0;
     var lastCode = 0;
     var fetched = 0;
+    var tries = 0;
 
     function beginFrame() {
         wanted = [];
@@ -56,6 +57,7 @@ class TileCache {
         var w = wanted[best];
         wanted = [];
         pending = w[3];
+        tries++;
         var url = BASE + w[0] + "/" + w[1] + "/" + w[2] + ".png";
         Communications.makeImageRequest(url, null,
             {:dithering => Communications.IMAGE_DITHERING_NONE,

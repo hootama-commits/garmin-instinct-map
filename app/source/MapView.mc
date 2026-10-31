@@ -132,7 +132,7 @@ class MapView extends WatchUi.View {
             dc.drawText(w / 2, 10, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, 24, Graphics.FONT_XTINY, "t" + model.tiles.fetched + " c" + model.tiles.lastCode, Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(30, h - 42, Graphics.FONT_XTINY, "t" + model.tiles.fetched + " c" + model.tiles.lastCode + " n" + model.tiles.tries, Graphics.TEXT_JUSTIFY_LEFT);
         if (model.recorder.session != null) {
             var mark = model.recorder.isRecording() ? "REC" : "PAUSE";
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
@@ -155,13 +155,17 @@ class MapView extends WatchUi.View {
             if (info.currentSpeed != null) { spd = info.currentSpeed; }
             hr = info.currentHeartRate;
         }
+        var paceLabel = "PACE";
         var pace = "--:--";
-        if (spd > 0.4) {
+        if (model.recorder.isBike()) {
+            paceLabel = "KM/H";
+            pace = (spd * 3.6).format("%.1f");
+        } else if (spd > 0.4) {
             var spk = (1000.0 / spd).toNumber();
             pace = (spk / 60).format("%d") + ":" + (spk % 60).format("%02d");
         }
         var timeStr = (t / 3600).format("%d") + ":" + ((t % 3600) / 60).format("%02d") + ":" + (t % 60).format("%02d");
-        var rows = [["TIME", timeStr], ["KM", (dist / 1000).format("%.2f")], ["PACE", pace], ["HR", (hr == null) ? "--" : "" + hr]];
+        var rows = [["TIME", timeStr], ["KM", (dist / 1000).format("%.2f")], [paceLabel, pace], ["HR", (hr == null) ? "--" : "" + hr]];
         var y = 14;
         for (var i = 0; i < rows.size(); i++) {
             dc.drawText(w / 2, y, Graphics.FONT_XTINY, rows[i][0], Graphics.TEXT_JUSTIFY_CENTER);
