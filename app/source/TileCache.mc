@@ -67,6 +67,7 @@ class TileCache {
         var key = pending;
         pending = null;
         lastCode = code;
+        System.println("tile " + key + " code " + code + " mem " + System.getSystemStats().usedMemory);
         if (key == null) { return; }
         if (code == 200 && data != null) {
             put(key, data);

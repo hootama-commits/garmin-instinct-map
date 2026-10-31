@@ -8,8 +8,8 @@ import Toybox.WatchUi;
 
 class MapView extends WatchUi.View {
     const TILE = 128;
-    const SUB_CX = 142;   // 우상단 원창 중심 [미검증 — 기기 정의로 보정]
-    const SUB_CY = 30;
+    const SUB_CX = 144;   // 우상단 원창 중심 — 기기 정의 subscreen(113,0 · 62×62)에서 계산
+    const SUB_CY = 31;
     var model;
     var page = 0;
 

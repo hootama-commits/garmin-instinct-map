@@ -12,5 +12,5 @@ mkdir -p bin
     -o "$(cygpath -w "$PWD/bin/MonoMap-$DEV.prg")" \
     -f "$(cygpath -w "$PWD/monkey.jungle")" \
     -y "$(cygpath -w "$ROOT/keys/developer_key.der")" \
-    -d "$DEV" -w -l 0
+    -d "$DEV" -w -l 0 ${CIQ_RELEASE:+-r}
 ls -la bin
