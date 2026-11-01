@@ -1,4 +1,4 @@
-# R2 안전선 감시 예약 작업 등록 — 로그온 시 + 지금 pythonw로 상주(창 없음), 죽으면 1분 뒤 재시작
+﻿# R2 안전선 감시 예약 작업 등록 — 로그온 시 + 지금 pythonw로 상주(창 없음), 죽으면 1분 뒤 재시작
 $py = Join-Path (Split-Path (python -c "import sys;print(sys.executable)")) 'pythonw.exe'
 $script = Join-Path $env:USERPROFILE 'Documents\garmin-instinct-map\tiles\r2guard.py'
 $set = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 99 -RestartInterval (New-TimeSpan -Minutes 1)
