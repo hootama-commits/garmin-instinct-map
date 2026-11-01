@@ -7,6 +7,11 @@
   python r2guard.py status
   python r2guard.py upload <로컬 폴더> <저장소 안 경로> [--dry-run]
   python r2guard.py note <쓰기 건수> <바이트> <메모>     # 도구 밖에서 올린 분량을 장부에 기록
+  python r2guard.py watch [초]                          # 장부를 주기(기본 30초)로 보다가 안전선 도달 시 정지
+  python r2guard.py kill                                # R2 관련 프로세스 즉시 종료 + 정지 잠금
+  python r2guard.py reset                               # 정지 잠금 해제(사용자가 직접, 새 주기·한도 확인 후)
+안전선 도달 = 쓰기·읽기·저장 중 하나라도 한도의 70% 이상 → 정지 잠금 파일 생성 + rclone·wrangler·R2 업로드 스크립트 종료.
+잠금이 있으면 upload는 항상 거부된다.
 환경변수 R2_KEYS = 키 파일 경로(ACCESS_KEY_ID·SECRET_ACCESS_KEY·ENDPOINT 줄), R2_BUCKET = 저장소 이름
 """
 
@@ -22,8 +27,11 @@ KEYS = os.environ.get(
     "R2_KEYS", os.path.expanduser("~/.claude/jobs/05f2a17e/tmp/r2keys.txt.txt")
 )
 LEDGER = os.path.expanduser("~/Documents/garmin-map-national/r2_ledger.json")
+STOP = os.path.join(os.path.dirname(LEDGER), "r2_STOP")
 LIMIT_A, LIMIT_B, LIMIT_GB = 1_000_000, 10_000_000, 10
 SAFE = 0.7
+# 종료 대상 명령줄(자기 자신·클로드 세션은 제외)
+KILL_PATTERN = r"rclone|wrangler|r2guard\.py upload|add_area\.py|r2_upload"
 
 
 def period():
@@ -60,6 +68,60 @@ def show(d):
     )
 
 
+def tripped(d):
+    """안전선 도달 항목 목록(쓰기·읽기·저장)."""
+    hits = []
+    if d["a"] >= LIMIT_A * SAFE:
+        hits.append(f"쓰기 {d['a']:,}")
+    if d["b"] >= LIMIT_B * SAFE:
+        hits.append(f"읽기 {d['b']:,}")
+    if d["bytes"] >= LIMIT_GB * 1e9 * SAFE:
+        hits.append(f"저장 {d['bytes'] / 1e9:.2f}GB")
+    return hits
+
+
+def kill_all():
+    """R2에 쓰는 프로세스를 출처(내부·외부)와 상관없이 종료. 자기 자신은 제외.
+    실행 파일 이름(rclone·wrangler·workerd·aws·s3cmd)이거나, python·node의 명령줄에 R2 업로드 흔적이 있는 것."""
+    ps = (
+        "Get-CimInstance Win32_Process | Where-Object {"
+        f" $_.ProcessId -ne {os.getpid()} -and ("
+        " $_.Name -match '^(rclone|wrangler|workerd|aws|s3cmd)(\\.exe)?$' -or"
+        " ($_.Name -match '^(python|pythonw|node)(\\.exe)?$' -and"
+        f" $_.CommandLine -match '{KILL_PATTERN}' -and"
+        " $_.CommandLine -notmatch 'r2guard\\.py (kill|watch|status|reset|note)') ) } |"
+        " ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $_.ProcessId }"
+    )
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True
+    )
+    return r.stdout.split()
+
+
+def trip(reason):
+    """정지 잠금 생성 + 관련 프로세스 종료."""
+    os.makedirs(os.path.dirname(STOP), exist_ok=True)
+    with open(STOP, "w", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M')} {reason}\n")
+    pids = kill_all()
+    print(f"정지: {reason} · 종료한 프로세스 {len(pids)}개 · 잠금 {STOP}")
+    alert(
+        f"[R2 안전선] {reason} · 프로세스 {len(pids)}개 종료 · 업로드 잠금(reset으로만 해제)"
+    )
+
+
+def alert(text):
+    """카카오 클로대리로 호민에게 알림(실패해도 정지 동작은 유지). 키·비밀값은 넣지 않음."""
+    try:
+        sys.path.insert(0, os.path.expanduser("~/.claude/tools/kakao-bot"))
+        import send_friend
+
+        send_friend.send("Homin", text)
+        print("클로대리 알림 전송")
+    except Exception as e:
+        print(f"클로대리 알림 실패: {e}")
+
+
 def keys():
     kv = {}
     for line in open(KEYS, encoding="utf-8-sig"):
@@ -79,6 +141,10 @@ def scan(folder):
 
 
 def upload(folder, remote, dry):
+    if os.path.exists(STOP):
+        sys.exit(
+            f"거부: 정지 잠금이 있음({open(STOP, encoding='utf-8').read().strip()}) — 사용자가 reset 해야 풀림"
+        )
     d = load()
     n, size = scan(folder)
     lists = math.ceil(n / 1000) + 5  # 목록 조회는 1,000개당 쓰기 1건
@@ -87,13 +153,13 @@ def upload(folder, remote, dry):
     print(f"올릴 파일 {n:,}개 · {size / 1e6:.1f}MB · 쓰기 약 {need_a:,}건")
     show(d)
     if new_a > LIMIT_A * SAFE:
-        sys.exit(
-            f"거부: 쓰기가 {new_a:,}건이 되어 안전선 {int(LIMIT_A * SAFE):,}건을 넘음"
-        )
+        trip(f"쓰기가 {new_a:,}건이 되어 안전선 {int(LIMIT_A * SAFE):,}건 초과 예상")
+        sys.exit(1)
     if new_bytes > LIMIT_GB * 1e9 * SAFE:
-        sys.exit(
-            f"거부: 저장이 {new_bytes / 1e9:.2f}GB가 되어 안전선 {LIMIT_GB * SAFE:.0f}GB를 넘음"
+        trip(
+            f"저장이 {new_bytes / 1e9:.2f}GB가 되어 안전선 {LIMIT_GB * SAFE:.0f}GB 초과 예상"
         )
+        sys.exit(1)
     if dry:
         print("dry-run: 통과(올리지 않음)")
         return
@@ -126,7 +192,14 @@ def upload(folder, remote, dry):
         "--log-level",
         "NOTICE",
     ]
-    rc = subprocess.run(cmd, env=env).returncode
+    proc = subprocess.Popen(cmd, env=env)
+    while proc.poll() is None:  # 업로드 중에도 잠금·장부 감시
+        time.sleep(5)
+        if os.path.exists(STOP) or tripped(load()):
+            proc.kill()
+            trip("업로드 중 안전선 도달")
+            break
+    rc = proc.wait()
     # 실패해도 시도한 만큼을 보수적으로 기록(상한 추정)
     d["a"] = new_a
     d["bytes"] = new_bytes
@@ -141,6 +214,8 @@ def upload(folder, remote, dry):
     )
     save(d)
     show(d)
+    if tripped(d):
+        trip("업로드 후 안전선 도달")
     sys.exit(rc)
 
 
@@ -166,6 +241,26 @@ def main():
         )
         save(d)
         show(d)
+        if tripped(d):
+            trip("기록 후 안전선 도달")
+    elif a[0] == "watch":
+        sec = int(a[1]) if len(a) > 1 else 30
+        while True:
+            d = load()
+            hits = tripped(d)
+            if hits or os.path.exists(STOP):
+                if not os.path.exists(STOP):
+                    trip("감시 중 안전선 도달: " + ", ".join(hits))
+                else:
+                    kill_all()  # 잠금 중에는 어디서 새로 뜨든 계속 종료
+            time.sleep(sec)
+    elif a[0] == "kill":
+        trip("수동 kill")
+    elif a[0] == "reset":
+        if os.path.exists(STOP):
+            os.remove(STOP)
+        print("정지 잠금 해제됨")
+        show(load())
     else:
         sys.exit(__doc__)
 
