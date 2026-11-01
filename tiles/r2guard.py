@@ -93,7 +93,10 @@ def kill_all():
         " ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $_.ProcessId }"
     )
     r = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True
+        ["powershell", "-NoProfile", "-Command", ps],
+        capture_output=True,
+        text=True,
+        creationflags=0x08000000,  # 창 숨김(상주 pythonw에서 깜빡임 방지)
     )
     return r.stdout.split()
 
