@@ -4,6 +4,7 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
 import Toybox.System;
+import Toybox.UserProfile;
 import Toybox.WatchUi;
 
 class MapView extends WatchUi.View {
@@ -146,7 +147,7 @@ class MapView extends WatchUi.View {
             }
         }
         var x = 30;
-        var y = h - 16;
+        var y = 42;
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x - 3, y - 15, px + 6, 20);
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
@@ -158,17 +159,98 @@ class MapView extends WatchUi.View {
         dc.drawText(x, y - 17, Graphics.FONT_XTINY, label, Graphics.TEXT_JUSTIFY_LEFT);
     }
 
-    function drawStatus(dc, w, h, z) {
+    // 속도 문자열: 자전거=km/h 한 자리, 러닝=분:초/km
+    function fmtSpd(spd) {
+        if (model.recorder.isBike()) { return (spd * 3.6).format("%.1f"); }
+        if (spd > 0.4) {
+            var spk = (1000.0 / spd).toNumber();
+            return (spk / 60).format("%d") + ":" + (spk % 60).format("%02d");
+        }
+        return "--:--";
+    }
+
+    // 심박 존(0=존 아래, 1~5, -1=정보 없음) — 기기 사용자 프로필의 존 경계 사용
+    function hrZone(hr) {
+        if (hr == null) { return -1; }
+        var sp = model.recorder.isBike() ? UserProfile.HR_ZONE_SPORT_BIKING : UserProfile.HR_ZONE_SPORT_RUNNING;
+        var zones = UserProfile.getHeartRateZones(sp);
+        if (zones == null) { return -1; }
+        var z = 0;
+        for (var i = 0; i < 5 && i < zones.size(); i++) {
+            if (hr >= zones[i]) { z = i + 1; }
+        }
+        return z;
+    }
+
+    function zoneText(hr) {
+        var z = hrZone(hr);
+        if (hr == null || z < 0) { return "Z-"; }
+        return "Z" + z + " " + hr;
+    }
+
+    // 우상단 원창: 심박 존·심박 / 현재 속도 / 평균 속도
+    function drawCircle(dc, info) {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.fillCircle(SUB_CX, SUB_CY, 31);
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(SUB_CX, SUB_CY, Graphics.FONT_TINY, "z" + z, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        var spd = (info != null && info.currentSpeed != null) ? info.currentSpeed : 0.0;
+        var avg = (info != null && info.averageSpeed != null) ? info.averageSpeed : 0.0;
+        var hr = (info != null) ? info.currentHeartRate : null;
+        var c = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
+        dc.drawText(SUB_CX, SUB_CY - 19, Graphics.FONT_XTINY, zoneText(hr), c);
+        dc.drawText(SUB_CX, SUB_CY - 1, Graphics.FONT_SMALL, fmtSpd(spd), c);
+        dc.drawText(SUB_CX, SUB_CY + 19, Graphics.FONT_XTINY, "av " + fmtSpd(avg), c);
+    }
+
+    // 상태 표시(아이콘+글자): START(▶) · REC(●) · PAUSE(❚❚) — 화면 아래 가운데
+    function drawState(dc, cx, y) {
+        var r = model.recorder;
+        var label = "START";
+        var kind = 0;
+        if (r.session != null) {
+            if (r.isRecording()) { label = "REC"; kind = 1; } else { label = "PAUSE"; kind = 2; }
+        }
+        var tw = dc.getTextWidthInPixels(label, Graphics.FONT_XTINY);
+        var total = 10 + 5 + tw;
+        var x0 = cx - total / 2;
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.fillRectangle(x0 - 4, y - 2, total + 8, 18);
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        drawIcon(dc, kind, x0, y + 2);
+        dc.drawText(x0 + 15, y, Graphics.FONT_XTINY, label, Graphics.TEXT_JUSTIFY_LEFT);
+    }
+
+    // 10×10 아이콘: 0=재생 1=기록 점 2=일시정지 3=정지(네모) 4=폐기(X)
+    function drawIcon(dc, kind, x, y) {
+        if (kind == 0) {
+            dc.fillPolygon([[x, y], [x, y + 10], [x + 9, y + 5]]);
+        } else if (kind == 1) {
+            dc.fillCircle(x + 5, y + 5, 5);
+        } else if (kind == 2) {
+            dc.fillRectangle(x, y, 3, 10);
+            dc.fillRectangle(x + 6, y, 3, 10);
+        } else if (kind == 3) {
+            dc.fillRectangle(x, y, 10, 10);
+        } else {
+            dc.setPenWidth(2);
+            dc.drawLine(x, y, x + 9, y + 9);
+            dc.drawLine(x, y + 9, x + 9, y);
+            dc.setPenWidth(1);
+        }
+    }
+
+    function drawStatus(dc, w, h, z) {
+        var info = Activity.getActivityInfo();
+        drawCircle(dc, info);
         var msg = null;
-        var phone = System.getDeviceSettings().phoneConnected;
-        if (!phone) {
+        if (!System.getDeviceSettings().phoneConnected) {
             msg = "NO PHONE";
         } else if (!model.hasFix) {
             msg = "GPS...";
+        }
+        if (msg == null && model.recorder.session != null && info != null && info.timerTime != null) {
+            var t = info.timerTime / 1000;
+            msg = (t / 3600).format("%d") + ":" + ((t % 3600) / 60).format("%02d") + ":" + (t % 60).format("%02d");
         }
         if (msg != null) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
@@ -176,49 +258,32 @@ class MapView extends WatchUi.View {
             dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
             dc.drawText(w / 2, 10, Graphics.FONT_XTINY, msg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-        if (model.recorder.session != null) {
-            var mark = model.recorder.isRecording() ? "REC" : "PAUSE";
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.fillRectangle(w - 76, h - 22, 46, 16);
-            dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(w - 53, h - 14, Graphics.FONT_XTINY, mark, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        }
+        drawState(dc, w / 2, 148);
     }
 
     function drawData(dc) {
-        var w = dc.getWidth();
         var info = Activity.getActivityInfo();
         var t = 0;
         var dist = 0.0;
-        var spd = 0.0;
         var hr = null;
         if (info != null) {
             if (info.timerTime != null) { t = info.timerTime / 1000; }
             if (info.elapsedDistance != null) { dist = info.elapsedDistance; }
-            if (info.currentSpeed != null) { spd = info.currentSpeed; }
             hr = info.currentHeartRate;
         }
-        var paceLabel = "PACE";
-        var pace = "--:--";
-        if (model.recorder.isBike()) {
-            paceLabel = "KM/H";
-            pace = (spd * 3.6).format("%.1f");
-        } else if (spd > 0.4) {
-            var spk = (1000.0 / spd).toNumber();
-            pace = (spk / 60).format("%d") + ":" + (spk % 60).format("%02d");
-        }
         var timeStr = (t / 3600).format("%d") + ":" + ((t % 3600) / 60).format("%02d") + ":" + (t % 60).format("%02d");
-        var rows = [["TIME", timeStr], ["KM", (dist / 1000).format("%.2f")], [paceLabel, pace], ["HR", (hr == null) ? "--" : "" + hr]];
-        var y = 14;
+        var rows = [["TIME", timeStr], ["KM", (dist / 1000).format("%.2f")], ["HR", (hr == null) ? "--" : "" + hr]];
+        var y = 10;
         for (var i = 0; i < rows.size(); i++) {
-            dc.drawText(w / 2, y, Graphics.FONT_XTINY, rows[i][0], Graphics.TEXT_JUSTIFY_CENTER);
-            dc.drawText(w / 2, y + 12, Graphics.FONT_MEDIUM, rows[i][1], Graphics.TEXT_JUSTIFY_CENTER);
-            y += 38;
+            dc.drawText(32, y, Graphics.FONT_XTINY, rows[i][0], Graphics.TEXT_JUSTIFY_LEFT);
+            dc.drawText(30, y + 15, Graphics.FONT_MEDIUM, rows[i][1], Graphics.TEXT_JUSTIFY_LEFT);
+            y += 45;
+            if (i < 2) {
+                dc.setPenWidth(1);
+                dc.drawLine(30, y - 4, (i == 0) ? 104 : 146, y - 4);
+            }
         }
-        var st = System.getSystemStats();
-        dc.drawText(w / 2, dc.getHeight() - 14, Graphics.FONT_XTINY,
-            "mem " + (st.usedMemory / 1024) + "/" + (st.totalMemory / 1024) + "k t" + model.tiles.fetched + " c" + model.tiles.lastCode,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        drawCircle(dc, info);
+        drawState(dc, dc.getWidth() / 2, 148);
     }
 }

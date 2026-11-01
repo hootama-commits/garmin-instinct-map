@@ -8,7 +8,12 @@ import Toybox.Time;
 import Toybox.WatchUi;
 
 class TileCache {
-    const BASE = "https://hootama-commits.github.io/garmin-instinct-map/v/";
+    const PAGES = "https://hootama-commits.github.io/garmin-instinct-map/v/";   // 수도권(13~16)
+    const R2 = "https://pub-b8b5b0f139db47ff9052de7f0563f6cc.r2.dev/v/";        // 전국(13~15)
+    const CAP_W = 14274614;   // 수도권 상자(z16 월드 px) — areas.py의 capital과 같음
+    const CAP_E = 14349180;
+    const CAP_N = 6453674;
+    const CAP_S = 6536028;
     const CAP = 10;
     var tiles = {};          // key -> 그리기 목록 [[코드, 점, 점...], ...]
     var order = [];          // LRU, 오래된 것이 앞
@@ -24,7 +29,16 @@ class TileCache {
         wanted = [];
     }
 
+    // 타일 중심이 수도권 상자 안인지
+    function inCapital(z, x, y) {
+        var s = 16 - z;
+        var cx = ((x * 128 + 64) << s);
+        var cy = ((y * 128 + 64) << s);
+        return cx >= CAP_W && cx <= CAP_E && cy >= CAP_N && cy <= CAP_S;
+    }
+
     function get(z, x, y, dist) {
+        if (z == 16 && !inCapital(z, x, y)) { return null; }   // 전국 타일은 15까지
         var key = "" + z + "/" + x + "/" + y;
         var ops = tiles.get(key);
         if (ops != null) {
@@ -58,7 +72,8 @@ class TileCache {
         wanted = [];
         pending = w[3];
         tries++;
-        var url = BASE + w[0] + "/" + w[1] + "/" + w[2] + ".json";
+        var base = inCapital(w[0], w[1], w[2]) ? PAGES : R2;
+        var url = base + w[0] + "/" + w[1] + "/" + w[2] + ".json";
         Communications.makeWebRequest(url, null,
             {:method => Communications.HTTP_REQUEST_METHOD_GET,
              :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON},

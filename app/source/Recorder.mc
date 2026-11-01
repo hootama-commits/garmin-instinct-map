@@ -21,15 +21,19 @@ class Recorder {
         if (session == null) { si = (si + 1) % SPORTS.size(); }
     }
 
-    function toggle() {
+    function begin() {
         if (session == null) {
             session = ActivityRecording.createSession({:name => "MonoMap", :sport => SPORTS[si]});
-            session.start();
-        } else if (session.isRecording()) {
-            session.stop();
-        } else {
-            session.start();
         }
+        session.start();
+    }
+
+    function pause() {
+        if (session != null) { session.stop(); }
+    }
+
+    function lap() {
+        if (session != null && session.isRecording()) { session.addLap(); }
     }
 
     function isRecording() {
